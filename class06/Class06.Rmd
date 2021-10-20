@@ -1,0 +1,251 @@
+---
+title: 'class 6: R function'
+author: "Jose Chacon (PID A59010515)"
+date: "10/15/2021"
+output:
+  pdf_document: default
+  html_document: default
+---
+
+## Quick Rmarkdown intro
+
+We can write text of course just like any file. We can **style text to be bold** or *italic*:
+
+Do:
+
+-this
+-and that
+-and another thing
+
+THis is more text
+and this is a new line
+
+---
+
+We can include some code:
+
+```{r}
+plot(1:10)
+```
+
+## Time to write a function
+
+>**Q1**. Write a function grade() to determine an overall grade from a vector of student homework
+assignment scores dropping the lowest single score. If a student misses a homework (i.e. has an
+NA value) this can be used as a score to be potentially dropped. Your final function should be
+adquately explained with code comments and be able to work on an example class gradebook
+such as this one in CSV format: “https://tinyurl.com/gradeinput” [3pts]
+
+```{r}
+# Example input vectors to start with
+student1 <- c(100, 100, 100, 100, 100, 100, 100, 90)
+student2 <- c(100, NA, 90, 90, 90, 90, 97, 80)
+student3 <- c(90, NA, NA, NA, NA, NA, NA, NA)
+```
+
+Find lowest score, to exclude from average. Lowest score can be found with min() and position can be found with which.min()
+```{r}
+which.min(student1)
+```
+
+# add '-' in front to exclude data in vector, in this case 'which.min' , excluding the lowest score from the vector.
+
+```{r}
+student1[ -which.min(student1) ]
+```
+
+Now **mean()** can function can be used to get average
+
+```{r}
+mean(student1[-which.min(student1) ])
+```
+
+Does it work for student2?
+
+```{r}
+mean(student2[-which.min(student2) ])
+```
+```{r}
+which.min(student2)
+```
+```{r}
+mean(student2)
+```
+
+```{r}
+mean(student2, na.rm=TRUE)
+```
+```{r}
+mean(student3, )
+```
+
+Replace NA value with 0
+
+
+```{r}
+student3[is.na(student3)] <- 0
+print(student3)
+```
+
+na() makes it a binary T or F at each position
+
+```{r}
+is.na(student2)
+```
+
+! turns it upside down, reverses it
+```{r}
+!is.na(student2)
+
+```
+
+replace NA values with zero and conserve original
+```{r}
+student.prime <- student2
+student.prime[is.na(student.prime)] = 0
+student.prime
+```
+
+get mean excluding lowest score
+
+```{r}
+mean(student.prime[ -which.min(student.prime)])
+```
+ 
+ student 3?
+ 
+```{r}
+student.prime <- student3
+student.prime[is.na(student.prime)] = 0
+student.prime
+mean(student.prime[ -which.min(student.prime)])
+
+
+```
+
+Clear up code
+```{r}
+x <- student3
+x[is.na(x)] = 0
+x
+mean(x[ -which.min(x)])
+```
+ 
+ 
+ New student
+```{r}
+student4 <- c(100, NA, 90, "90", 90, 90, 97, 80)
+student4
+new_student4<- as.numeric(student4)
+new_student4
+```
+ 
+```{r}
+x <- new_student4
+x[is.na(x)] = 0
+x
+mean(x[ -which.min(x)])
+```
+Write function 
+function are composed of 3 things
+a name, input arg, and a body
+```{r}
+grade <- function(x) {
+  x <- as.numeric(x)
+  x[ is.na(x)] = 0
+  mean(x [ -which.min(x)])
+}
+```
+ 
+```{r}
+grade(student2)
+```
+
+Now grade the class
+
+```{r}
+gradebook <- "https://tinyurl.com/gradeinput"
+scores <- read.csv(gradebook, row.names=1)
+scores
+```
+
+Use the  **apply()**  fuction to grade students with the **grade()** function
+>**Q1**
+
+```{r}
+ans <- apply(scores, 1, grade)
+ans
+```
+
+> **Q2**  who is top scoring student
+
+```{r}
+which.max(ans)
+```
+## student 18 scored the highest
+Q3. which test was toughest
+
+```{r}
+q3 <- apply(scores, 2, mean)
+q3
+```
+
+ignore NA values # not great since it means if someone didn't turn it it would be zero
+```{r}
+apply(scores, 2, mean, na.rm=TRUE)
+```
+replace/mask NA values to zero
+```{r}
+mask <- scores
+is.na(mask)
+mask[is.na(mask)] <- 0
+mask
+```
+
+
+Now use apply utilizing the "masked" scores!
+```{r}
+apply(mask, 2, mean)
+
+```
+## Hardest test was hw2
+Q4.Q4. Optional Extension: From your analysis of the gradebook, which homework was most
+predictive of overall score (i.e. highest correlation with average grade score)? [1pt]
+
+Here use the **cor()** function
+```{r}
+cor(mask$hw5, ans)
+```
+
+```{r}
+cor(mask, ans)
+```
+
+can call **cor()** for every hw and get a value, use apply to do them all
+
+```{r}
+ans
+apply(mask, 2, cor, ans) 
+```
+
+## hw5 is most predictive
+
+
+## NEW
+```{r}
+grade2 <-function(x, drop.lowest=TRUE){
+  x <- as.numeric(x)
+  x [ is.na(x)] = 0
+  if(drop.lowest) {
+    mean(x[-which.min(x)])
+  } else {
+    mean(x)
+  }
+} 
+```
+
+```{r}
+student <- c(100, 100, 100, 90)
+grade2(student, drop.lowest = FALSE)
+```
+
