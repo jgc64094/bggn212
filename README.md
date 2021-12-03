@@ -2,7 +2,7 @@
 
 Bioinformatics class at UC San Diego Fall 2021
 
- ## Contents:
+ ## Contents :
  
  -04. Introduction to R
  
