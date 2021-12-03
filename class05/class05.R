@@ -2,6 +2,7 @@
 #' title: "Class05: Data Visualization"
 #' author: "Jose Chacon"
 #' date: "October 13, 2021"
+#' output: github_document
 #' ---
 #Today we are going to use ggplot2 package
 
