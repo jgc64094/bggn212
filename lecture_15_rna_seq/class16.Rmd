@@ -1,0 +1,283 @@
+---
+title: "rna_seq_project"
+author: "Jose Chacon (PID A59010515)"
+date: "11/19/2021"
+output: pdf_document
+---
+
+```{r message=FALSE}
+library(DESeq2)
+```
+
+# Data import
+```{r}
+metaFile <- "GSE37704_metadata.csv"
+countFile <- "GSE37704_featurecounts.csv"
+
+# Import metadata and take a peak
+colData = read.csv(metaFile, row.names=1)
+head(colData)
+
+```
+
+```{r}
+# Import countdata
+countData = read.csv(countFile, row.names=1)
+head(countData)
+```
+
+```{r}
+# Note we need to remove the odd first $length col
+countData <- as.matrix(countData[,2:7])
+head(countData)
+```
+
+
+
+
+#Barry code for removing code
+#counts <- as.matrix(countData[, -1])
+
+#Remove zeros (use previous code)
+#inds <- which(meancounts[,1:2] == 0, arr.ind=TRUE)
+#head(inds)
+#to.rm <- unique(sort(inds[,"row"]))
+#mycounts <- meancounts[-to.rm,]
+#head(meancounts[-to.rm,])
+```{r}
+inds <- which(countData > 0, arr.ind=TRUE)
+to.rm <- unique(sort(inds[,"row"]))
+mycounts <- countData[to.rm,]
+head(countData[to.rm,])
+```
+***CODE
+```{r}
+df2 <- countData[rowSums(countData[]) > 0, ]
+nrow(df2)
+```
+
+```{r}
+#new_countData = countData(rowSums([, -1])>0) )
+#head(new_countData)
+```
+
+
+
+```{r}
+nrow(mycounts)
+```
+```{r}
+counts <- read.csv("GSE37704_featurecounts.csv", row.names=1)
+```
+
+```{r}
+countData=read.csv(countFile, row.names=1)
+```
+
+```{r}
+countData <- as.matrix(countData[,-1])
+```
+
+```{r}
+counts <- countData[rowSums(counts) !=0,]
+```
+
+#Barry code 
+```{r}
+pca <- prcomp(t(counts))
+summary(pca)
+```
+
+#PCA
+```{r}
+
+```
+
+```{r}
+#pca <- prcomp(mycounts , scale=TRUE) old code
+```
+
+```{r}
+plot(pca$x[,1:2])
+```
+
+```{r}
+pca <- prcomp(t(counts))
+plot(pca$x[,1:2], pch=16, col=as.factor(colData$condition))
+text(pca$x[,1:2], labels = colData$condition)
+```
+```{r}
+library(ggplot2)
+
+x <- as.data.frame(pca$x)
+x$condition <- colData$condition
+
+ggplot(x) +
+  aes(PC1, PC2, col=condition) +
+  geom_point()
+```
+
+```{r}
+dds = DESeqDataSetFromMatrix(countData=counts, #change to nonzero data
+                             colData=colData,
+                             design=~condition)
+dds = DESeq(dds)
+```
+
+```{r}
+dds <- DESeq(dds)
+res <- results(dds)
+res
+```
+
+#check similarity later
+```{r}
+#mycounts == df2
+```
+
+```{r}
+summary(res)
+```
+
+```{r}
+plot( res$log2FoldChange, -log(res$padj) )
+
+```
+```{r}
+# Make a color vector for all genes
+mycols <- rep("gray", nrow(res) )
+
+# Color red the genes with absolute fold change above 2
+mycols[ abs(res$log2FoldChange) > 2 ] <- "red"
+
+# Color blue those with adjusted p-value less than 0.01
+#  and absolute fold change more than 2
+inds <- (res$listDATA$pvalue <0.01) & (abs(res$log2FoldChange) > 2 )
+mycols[ inds ] <- "blue"
+
+plot( res$log2FoldChange, -log(res$padj), col=mycols, xlab="Log2(FoldChange)", ylab="-Log(P-value)" )
+```
+```{r}
+#mycols <- rep("gray", nrow(res))
+#mycols[abs(res$log2FoldChange)>2] <- red
+#mycols[res$pad > 0.05] <- "gray"
+
+#plot(res$log2FoldChange, -log(res$padj), col=mycols)
+
+```
+
+```{r}
+library("AnnotationDbi")
+library("org.Hs.eg.db")
+
+columns(org.Hs.eg.db)
+
+res$symbol = mapIds(org.Hs.eg.db,
+                    keys=row.names(res), 
+                    keytype="ENSEMBL",
+                    column="SYMBOL",
+                    multiVals="first")
+
+res$entrez = mapIds(org.Hs.eg.db,
+                    keys=row.names(res),
+                    keytype="ENSEMBL",
+                    column="ENTREZID",
+                    multiVals="first")
+
+res$name =   mapIds(org.Hs.eg.db,
+                    keys=row.names(res),
+                    keytype="ENSEMBL",
+                    column="GENENAME",
+                    multiVals="first")
+
+head(res, 10)
+```
+
+#Pathway
+```{r}
+library(pathview)
+```
+
+```{r}
+library(gage)
+library(gageData)
+
+data(kegg.sets.hs)
+data(sigmet.idx.hs)
+
+# Focus on signaling and metabolic pathways only
+kegg.sets.hs = kegg.sets.hs[sigmet.idx.hs]
+
+# Examine the first 3 pathways
+head(kegg.sets.hs, 3)
+```
+
+```{r}
+foldchanges = res$log2FoldChange
+names(foldchanges) = res$entrez
+head(foldchanges)
+```
+
+```{r}
+# Get the results
+keggres = gage(foldchanges, gsets=kegg.sets.hs)
+```
+
+```{r}
+attributes(keggres)
+```
+
+```{r}
+# Look at the first few down (less) pathways
+head(keggres$less)
+```
+
+```{r}
+pathview(gene.data=foldchanges, pathway.id="hsa04110")
+
+```
+
+```{r}
+# A different PDF based output of the same data
+pathview(gene.data=foldchanges, pathway.id="hsa04110", kegg.native=FALSE)
+```
+
+```{r}
+## Focus on top 5 upregulated pathways here for demo purposes only
+keggrespathways <- rownames(keggres$greater)[1:5]
+
+# Extract the 8 character long IDs part of each string
+keggresids = substr(keggrespathways, start=1, stop=8)
+keggresids
+```
+
+```{r}
+pathview(gene.data=foldchanges, pathway.id=keggresids, species="hsa")
+
+```
+
+```{r}
+data(go.sets.hs)
+data(go.subs.hs)
+
+# Focus on Biological Process subset of GO
+gobpsets = go.sets.hs[go.subs.hs$BP]
+
+gobpres = gage(foldchanges, gsets=gobpsets, same.dir=TRUE)
+
+lapply(gobpres, head)
+```
+
+```{r}
+sig_genes <- res[res$padj <= 0.05 & !is.na(res$padj), "symbol"]
+print(paste("Total number of significant genes:", length(sig_genes)))
+```
+
+```{r}
+write.table(sig_genes, file="significant_genes.txt", row.names=FALSE, col.names=FALSE, quote=FALSE)
+```
+
+```{r}
+sessionInfo()
+```
+
