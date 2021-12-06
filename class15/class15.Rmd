@@ -1,0 +1,351 @@
+---
+title: "class15"
+author: "Jose Chacon (PID A59010515)"
+date: "11/17/2021"
+output: pdf_document
+---
+
+#install.packages("BiocManager") #BiocManager::install()
+
+# For this class, you'll also need DESeq2:
+
+#BiocManager::install("DESeq2")
+
+> Import countData and colData
+
+We need 2 things 1: count data 2: colData(the metadata that tells us the design of the experiment)
+
+```{r}
+counts <- read.csv("airway_scaledcounts.csv", row.names=1)
+metadata <-  read.csv("airway_metadata.csv")
+```
+
+```{r}
+head(counts)
+```
+
+```{r}
+head(metadata)
+```
+
+side-note: Let's check the correspondaence of the metadata and count data setup.
+
+```{r}
+metadata$id
+```
+
+```{r}
+colnames(counts)
+```
+
+We can use the `==` thing to see if they are the same
+
+```{r}
+all(metadata$id == colnames(counts))
+```
+
+```{r}
+all(c(T,T, F))
+```
+
+## Compare control to treated
+
+First we need to access all the control columns in our counts data
+
+```{r}
+control.ins <- metadata$dex == "control"
+control.ids <- metadata[ control.ins, ]$id
+```
+
+Use these ids to access just the control columns of our 'counts' data
+
+```{r}
+control.mean <- rowMeans((counts[ , control.ids]))
+head(control.mean)
+```
+
+## Treated
+
+Do the same for the drug treated...
+
+```{r}
+treated.ins <- metadata$dex == "treated"
+treated.ids <- metadata[ treated.ins, ]$id
+```
+
+```{r}
+treated.mean <- rowMeans((counts[ , treated.ids]))
+head(treated.mean)
+```
+
+```{r}
+meancounts <- data.frame(control.mean, treated.mean)
+```
+
+There are `r nrow(counts)` row/genes in this dataset number of genes
+
+```{r}
+nrow(counts)
+```
+
+## Compare the control and treated
+
+```{r}
+plot(meancounts)
+
+```
+
+This would benefit gtom
+
+```{r}
+plot(meancounts, log="xy")
+
+```
+
+```{r}
+log2(20/20)
+```
+
+```{r}
+log2(40/20)
+```
+
+```{r}
+log2(10/20)
+```
+
+```{r}
+head(treated.mean)
+```
+
+```{r}
+meancounts$log2fc <- log2(meancounts[,"treated.mean"]/meancounts[,"control.mean"])
+head(meancounts)
+```
+
+We need to drop the zero count genes/row!
+
+```{r}
+head(meancounts[,1:2])
+```
+
+```{r}
+head(meancounts[,1:2] == 0)
+```
+
+The `which()` function tells us the indices of TRUE entries in a logical vector.
+
+```{r}
+which(c(T,F,T,F,F,T))
+```
+
+However, it is not that useful in default mode on our of multi column input....
+
+```{r}
+inds <- which(meancounts[,1:2] == 0, arr.ind=TRUE)
+head(inds)
+```
+
+I only care about the rows here (if there is a zero in a column I will exclude the row eventually).
+
+```{r}
+to.rm <- unique(sort(inds[,"row"]))
+```
+
+```{r}
+mycounts <- meancounts[-to.rm,]
+head(meancounts[-to.rm,])
+```
+
+We now have `r nrow(mycounts)` genes remaining
+
+```{r}
+nrow(meancounts[-to.rm,])
+```
+
+How many of these genes are up regulated at the log2 fold-change threshhold of +2 or greater?
+
+```{r}
+sum(mycounts$log2fc > +2)
+```
+
+what percentage is this
+
+```{r}
+round(sum(mycounts$log2fc > +2)/nrow(mycounts))*100
+```
+
+1.15
+
+```{r}
+sum(mycounts <2)
+```
+
+#DESEq2
+
+```{r}
+library(DESeq2)
+citation("DESeq2")
+```
+
+We first need to setup the DESeq input object.
+
+```{r}
+dds <- DESeqDataSetFromMatrix(countData=counts, 
+                              colData=metadata, 
+                              design=~dex)
+dds
+
+```
+
+Run the DESeq analysis pipeline
+
+```{r}
+dds <- DESeq(dds)
+```
+
+```{r}
+res <- results(dds)
+head(res)
+```
+
+# A volcano plot
+
+This is a very common data viz of the type of data that does not really look like a volcano
+
+```{r}
+plot(res$log2FoldChange, - log(res$padj))
+abline(v=c(-2,2), col="gray")
+abline(h=-log(0.05), col="gray")
+```
+
+## Adding annotation data
+
+We want to add meaningful gene names to our dataset so we can make a sense of what is going on here...
+
+For this we will
+
+```{r}
+#BiocManager::install("AnnotationDbi")
+#BiocManager::install("org.Hs.eg.db")
+library("AnnotationDbi")
+library("org.Hs.eg.db")
+```
+
+```{r}
+columns(org.Hs.eg.db)
+
+
+```
+
+Here we want to map to "SYMBOL" the common gene name that the world understands and wants,
+
+```{r}
+res$symbol <- mapIds(org.Hs.eg.db,
+                     keys=row.names(res), # Our genenames
+                     keytype="ENSEMBL",        # The format of our genenames
+                     column="SYMBOL",          # The new format we want to add
+                     multiVals="first")
+```
+
+```{r}
+head(res)
+```
+
+# Lets finally save our results to date
+
+```{r}
+write.csv(res, file= "allmyresults.csv")
+```
+
+# Pathway analysis
+
+Let's try to bring some biology insight into this work. For this we will start with KEGG.
+
+# Run in your R console (i.e. not your Rmarkdown doc!)
+
+#BiocManager::install( c("pathview", "gage", "gageData") )
+
+```{r message=FALSE}
+library(pathview)
+library(gage)
+library(gageData)
+
+data(kegg.sets.hs)
+
+# Examine the first 2 pathways in this kegg set for humans
+head(kegg.sets.hs, 2)
+
+```
+
+Before we can use KEGG we need to get our gene indetifiers in the correct format for KEGG, which is ENTREZ format in this case.
+
+```{r}
+head(rownames(res))
+```
+
+```{r}
+columns(org.Hs.eg.db)
+```
+
+```{r}
+res$entrez <- mapIds(org.Hs.eg.db,
+                     keys=row.names(res), # Our genenames
+                     keytype="ENSEMBL",        # The format of our genenames
+                     column="ENTREZID",          # The new format we want to add
+                     multiVals="first")
+
+
+res$genename <- mapIds(org.Hs.eg.db,
+                     keys=row.names(res), # Our genenames
+                     keytype="ENSEMBL",        # The format of our genenames
+                     column="GENENAME",          # The new format we want to add
+                     multiVals="first")
+
+```
+
+```{r}
+head(res)
+```
+
+```{r}
+foldchanges <-  res$log2FoldChange
+head(foldchanges)
+```
+
+```{r}
+names(foldchanges) <- res$entrez
+head(foldchanges)
+```
+
+Now we are ready for the **gage()** function
+
+```{r}
+# Get the results
+keggres = gage(foldchanges, gsets=kegg.sets.hs)
+```
+
+```{r}
+
+```
+
+we can look at the attributes() of this or indeed any R object.
+
+```{r}
+attributes(keggres)
+```
+
+```{r}
+head(keggres$less)
+```
+
+The pathway function will add our genes to a KEGG Pathway
+
+```{r}
+pathview(gene.data=foldchanges, pathway.id="hsa05310")
+```
+
+![](hsa05310.pathview.png)
+
+
+
